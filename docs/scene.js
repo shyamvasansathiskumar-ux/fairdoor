@@ -54,7 +54,7 @@ createWorld(document.getElementById("world"), async ({ scene, camera, mobile }) 
   for (let i = 0; i < NS; i++) S.push({ u: R(), sp: 0.035 + R() * 0.03, lane: R() * 2 - 1.15, j: i % 12, hostel: i < NS * 0.37 ? 0 : i < NS * 0.73 ? 1 : 2, n: R() * 6.28, p: new THREE.Vector3(-10 + R() * 12, FLOOR + 0.058, (R() - 0.5) * 6), stamp: 0 });
   for (let i = 0; i < NF; i++) F.push({ u: R(), sp: 0.09 + R() * 0.07, bot: i % 20, n: R() * 6.28, p: new THREE.Vector3(-14, FLOOR + 0.055, 0), on: 0 });
 
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), tgt = new THREE.Vector3(), col = new THREE.Color();
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), tgt = new THREE.Vector3(), col = new THREE.Color(), pos = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
   const X0 = -11, X1 = DX + 2.6;          // walk from X0, through the door at DX, fade out by X1
   const funnel = (x) => smooth(DX - 4.5, DX - 0.2, x);   // 0 far away → 1 in the doorway
 
@@ -137,7 +137,7 @@ createWorld(document.getElementById("world"), async ({ scene, camera, mobile }) 
       const enter = smooth(X0, X0 + 1.2, x);
       if (k2 > 0.5 && x > DX - 1.6) s.stamp = Math.min(1, s.stamp + dt * 3);
       sc.setScalar(Math.max(0.0001, fade * enter));
-      m4.compose(sc.x > 0 ? new THREE.Vector3(x + offX, s.p.y, s.p.z) : s.p, q, sc);
+      m4.compose(pos.set(x + offX, s.p.y, s.p.z), q, sc);
       students.setMatrixAt(i, m4);
       students.setColorAt(i, col.copy(INK).lerp(GREEN, s.stamp * k2));
     }
@@ -154,8 +154,8 @@ createWorld(document.getElementById("world"), async ({ scene, camera, mobile }) 
       const fade = 1 - smooth(DX + 0.6, X1, b.p.x);
       const s = Math.max(0.0001, floodOn * fade * smooth(X0 - 2, X0 - 0.5, b.p.x));
       sc.setScalar(s);
-      q.setFromAxisAngle(sc.set(0, 1, 0), t * 2 + b.n); sc.setScalar(s);
-      m4.compose(new THREE.Vector3(b.p.x + offX, b.p.y, b.p.z), q, sc);
+      q.setFromAxisAngle(UP, t * 2 + b.n); sc.setScalar(s);
+      m4.compose(pos.set(b.p.x + offX, b.p.y, b.p.z), q, sc);
       flood.setMatrixAt(i, m4);
     }
     q.identity();

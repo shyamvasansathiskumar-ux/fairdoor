@@ -56,8 +56,9 @@
   const msgOf = (student, time, h) => enc.encode(`${student}|${time}|${h}`);
   $("stIssue").addEventListener("click", async () => {
     const student = $("stStudent").value.trim(), time = $("stTime").value.trim(), body = $("stBody").value;
-    if (!/^\d{2}:\d{2}:\d{2}$/.test(time)) return msg("bad", "Arrival time should look like 23:59:41.");
-    if (time > "23:59:59" || time < "00:00:00") return msg("bad", "That's not a time of day.");
+    const hms = /^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/.exec(time);
+    if (!hms) return msg("bad", "Arrival time should be a time of day like 23:59:41.");
+    if (!student) return msg("bad", "Enter a student ID.");
     const h = await sha(body);
     const sig = hex(await crypto.subtle.sign("HMAC", key, msgOf(student, time, h)));
     issued = { student, time, h, sig };
@@ -131,7 +132,10 @@
     document.querySelectorAll("#seg button").forEach((x) => x.classList.toggle("on", x === b));
     tlPolicy = b.dataset.p; drawTimeline();
   }));
-  $("simRun").addEventListener("click", runAll);
+  $("simRun").addEventListener("click", () => {
+    const b = $("simRun"); b.disabled = true; b.textContent = "Running…";
+    setTimeout(() => { try { runAll(); } finally { b.disabled = false; b.textContent = "Run"; } }, 30);
+  });
   $("simReset").addEventListener("click", () => {
     Object.entries({ rate: 60, bots: 20, cap: 4, runs: 10 }).forEach(([k, v]) => { $(k).value = v; $(out[k]).textContent = v; });
     runAll();
