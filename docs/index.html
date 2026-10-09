@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FairDoor · deadline-fair rate limiting</title>
+<meta name="description" content="At 11:58 pm a deadline rush and a script flood look the same to a server. FairDoor counts per student, judges the deadline on arrival, and explains every throttle. Run the simulation in your browser.">
+<meta name="theme-color" content="#e8e1d3">
+<meta property="og:title" content="FairDoor · deadline-fair rate limiting">
+<meta property="og:description" content="Per-IP limiting made 68 of 300 students miss a deadline under a flood. FairDoor: zero. Run it yourself. By Shyam Kumar.">
+<meta property="og:image" content="og.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23e8e1d3'/%3E%3Crect x='20' y='12' width='24' height='40' fill='none' stroke='%2315120e' stroke-width='5'/%3E%3Crect x='25' y='17' width='14' height='35' fill='%2312734a'/%3E%3C/svg%3E">
+<link rel="preload" href="cormorant.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="geist.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="site.css">
+<script>document.documentElement.classList.add("js")</script>
+<script type="importmap">{ "imports": { "three": "./three.module.min.js" } }</script>
+</head>
+<body>
+<div class="loader" aria-hidden="true">
+  <div class="who"><span class="label bare">FairDoor</span><span class="label bare">Shyam Kumar</span></div>
+  <div class="n"><b>00</b><sup>%</sup></div>
+</div>
+<canvas id="world" aria-hidden="true"></canvas>
+<ol class="rail" aria-label="Chapters"></ol>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top"><span class="dot"></span>FairDoor</a>
+    <ul>
+      <li><a href="#problem">The problem</a></li>
+      <li><a href="#idea">The idea</a></li>
+      <li><a href="#stamp">Stamps</a></li>
+      <li><a href="#sim">Simulation</a></li>
+    </ul>
+    <a class="btn sm ghost" href="https://github.com/shyamvasansathiskumar-ux/fairdoor" target="_blank" rel="noopener">Source <span class="arr">↗</span></a>
+  </div>
+</header>
+
+<main id="top">
+  <!-- 00 · hero -->
+  <section class="hero" id="hero" data-stage="0" data-chapter="FairDoor">
+    <div class="wrap hero-in">
+      <p class="label" data-intro>Rate limiting · Deadline fairness · Simulation</p>
+      <h1 class="display hero-title" data-intro-split>Fair<em>Door</em></h1>
+      <p class="clock" data-intro><b class="mono" id="clock">23:58:00</b><span>Two things look the same to a server right now.</span></p>
+      <div class="hero-foot">
+        <p class="lede" data-intro>Three hundred students hitting <strong>submit</strong>, and one script hammering the endpoint. FairDoor is a design for academic submission forms that can tell them apart.</p>
+      </div>
+      <div class="hero-cta" data-intro>
+        <a class="btn acc" href="#sim">Run the simulation <span class="arr">→</span></a>
+        <a class="btn ghost" href="#problem">Why per-IP limits fail</a>
+      </div>
+    </div>
+    <div class="wrap hero-stats" data-intro>
+      <div><b class="mono">300</b><span>students, 220 behind two hostel IPs</span></div>
+      <div><b class="mono hot">60/s</b><span>flood from 20 IPs, one account</span></div>
+      <div><b class="mono">68.4</b><span>missed the deadline with per-IP limits</span></div>
+      <div><b class="mono hl">0</b><span>missed with FairDoor</span></div>
+    </div>
+  </section>
+
+  <!-- 01 · problem -->
+  <section id="problem" data-stage="1" data-chapter="The problem">
+    <div class="wrap">
+      <div class="head-row">
+        <p class="label" data-scramble>01 · The problem</p>
+        <h2 class="h1" data-split>Per-IP limiting gets <em>both</em> wrong.</h2>
+      </div>
+      <div class="duo">
+        <article class="card wrong" data-rise>
+          <span class="tag">Wrong 1</span>
+          <h3 class="h2">It punishes the innocent.</h3>
+          <p class="body">Hostels and campuses sit behind a few shared public IPs. 110 students on one IP look like one very busy client, so they get throttled together.</p>
+          <div class="viz nat" aria-hidden="true"><div class="dots" id="natDots"></div><div class="pipe"><span>hostelA · 1 IP</span></div></div>
+        </article>
+        <article class="card wrong" data-rise=".1">
+          <span class="tag">Wrong 2</span>
+          <h3 class="h2">It misses the attacker.</h3>
+          <p class="body">A script spread across 20 IPs gets twenty times the budget. The limiter sees twenty polite clients.</p>
+          <div class="viz bots" aria-hidden="true"><div class="dots" id="botDots"></div><div class="pipe hot"><span>20 IPs · 20× budget</span></div></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <div class="marquee" aria-hidden="true"><div class="track" data-speed="46"><span>Count per student</span><span>Judge on arrival</span><span>Explain every throttle</span><span>Deficit round robin</span><span>Signed arrival stamps</span></div></div>
+
+  <!-- 02 · idea (pinned horizontal) -->
+  <section id="idea" class="how" data-stage="2" data-chapter="The idea">
+    <div class="wrap how-head">
+      <p class="label" data-scramble>02 · The idea</p>
+      <h2 class="h1" data-split>Three parts. <em>Aimed at the deadline.</em></h2>
+      <p class="body" data-rise>None of them is new on its own. The combination, aimed at deadlines, is the point.</p>
+    </div>
+    <div class="hscroll" id="hscroll">
+      <div class="cards" id="cards">
+        <article class="step card">
+          <header><span class="num">1</span><span class="label bare">Fair queue</span></header>
+          <h3 class="h3">Count per student, not per IP.</h3>
+          <div class="live lanes" id="lanes" aria-hidden="true"></div>
+          <p class="fine">Requests queue by signed-in identity and are served round-robin (deficit round robin, Shreedhar &amp; Varghese, 1995). One request in flight per student. A flooder with one account gets one turn per round, however many IPs it uses.</p>
+        </article>
+        <article class="step card">
+          <header><span class="num">2</span><span class="label bare">Arrival stamp</span></header>
+          <h3 class="h3">Judge the deadline on arrival, not on service.</h3>
+          <div class="live"><code class="formula">stamp = HMAC(key, student ‖ arrival_time ‖ SHA-256(submission))</code></div>
+          <p class="fine">When the server is saturated it doesn't drop the request. It hands back a signed stamp, and the browser resubmits later. Binding the hash means nobody can keep editing after the deadline.</p>
+        </article>
+        <article class="step card">
+          <header><span class="num">3</span><span class="label bare">Explainable flags</span></header>
+          <h3 class="h3">Every throttle has a reason on record.</h3>
+          <div class="live log mono" id="flaglog"></div>
+          <p class="fine">So when a student says "the portal ate my submission", an administrator can answer with evidence instead of guessing.</p>
+        </article>
+        <article class="step card final">
+          <header><span class="num">✓</span><span class="label bare">Result</span></header>
+          <h3 class="h3">The flood can use idle capacity. It can't take a student's turn.</h3>
+          <div class="live"><b class="bigcode mono">0 / 300</b><span class="mono sub">missed, under a 60 req/s flood</span></div>
+          <p class="fine">Under FairDoor the attacker still gets about 49% of capacity, by design: round-robin is work-conserving, so spare turns go to whoever asks.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 · stamp demo -->
+  <section id="stamp" data-stage="3" data-chapter="Stamps">
+    <div class="wrap grid">
+      <div class="col-l stack">
+        <p class="label" data-scramble>03 · Try a stamp</p>
+        <h2 class="h2" data-split>Late for the server. <em>On time for the deadline.</em></h2>
+        <p class="body" data-rise>This is the stamp, for real: HMAC-SHA256 in your browser with a key made when the page loaded. Get a stamp at 23:59:41, then try to sneak an edit in afterwards.</p>
+      </div>
+      <div class="col-r">
+        <div class="tool card" data-rise>
+          <div class="row2">
+            <label class="field"><span>Student</span><input class="input" id="stStudent" value="2025CSE0412"></label>
+            <label class="field"><span>Arrived at</span><input class="input" id="stTime" value="23:59:41"></label>
+          </div>
+          <label class="field"><span>Submission</span><textarea class="input" id="stBody" rows="3">Assignment 4: binary search tree, all six test cases passing.</textarea></label>
+          <div class="row gap"><button class="btn acc" id="stIssue">Server is busy: issue stamp</button></div>
+          <div class="stampbox" id="stampbox" hidden>
+            <span class="label bare">Arrival stamp</span>
+            <code id="stOut"></code>
+          </div>
+          <div class="row gap"><button class="btn" id="stVerify" disabled>Resubmit at 00:03:10</button><button class="btn ghost" id="stEdit" disabled>Edit the answer, then resubmit</button></div>
+          <p class="msg" id="stMsg"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 · simulation -->
+  <section id="sim" data-stage="4" data-chapter="Simulation">
+    <div class="wrap">
+      <div class="head-row">
+        <p class="label" data-scramble>04 · Simulation</p>
+        <h2 class="h1" data-split>Run it <em>yourself.</em></h2>
+        <p class="body" data-rise>A line-for-line port of <code>sim.py</code>, with Python's own random number generator, so the defaults reproduce the README's table exactly. 1-second ticks, a 10-minute window, the server handles a few requests a second, and arrivals pile up near the deadline.</p>
+      </div>
+      <div class="simgrid">
+        <div class="card controls" data-rise>
+          <label class="field"><span>Flood rate · <b id="vRate">60</b> req/s</span><input type="range" id="rate" min="0" max="200" step="10" value="60"></label>
+          <label class="field"><span>Bot IPs · <b id="vBots">20</b></span><input type="range" id="bots" min="1" max="60" step="1" value="20"></label>
+          <label class="field"><span>Server capacity · <b id="vCap">4</b> req/s</span><input type="range" id="cap" min="2" max="10" step="1" value="4"></label>
+          <label class="field"><span>Runs averaged · <b id="vRuns">10</b></span><input type="range" id="runs" min="1" max="30" step="1" value="10"></label>
+          <div class="row gap"><button class="btn acc" id="simRun">Run</button><button class="btn ghost" id="simReset">README defaults</button></div>
+          <p class="msg" id="simMsg"></p>
+        </div>
+        <div class="card results" data-rise=".1">
+          <div class="bars" id="bars"></div>
+          <div class="tl">
+            <div class="tl-head"><span class="label bare">One run, second by second</span>
+              <div class="seg" id="seg"><button data-p="none">No limiter</button><button data-p="per_ip">Per-IP</button><button data-p="fairdoor" class="on">FairDoor</button></div></div>
+            <canvas id="tlc" height="220"></canvas>
+            <div class="legend"><span><i class="k-l"></i>students served</span><span><i class="k-a"></i>flood served</span><span><i class="k-d"></i>students on time (cumulative)</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 · results -->
+  <section id="results" class="ink-band" data-stage="5" data-chapter="Results">
+    <div class="wrap">
+      <div class="head-row">
+        <p class="label" data-scramble>05 · Results · mean of 10 runs</p>
+        <h2 class="h1" data-split>Worse than <em>nothing.</em></h2>
+      </div>
+      <div class="table-big" data-stagger>
+        <div class="tr th"><span>Policy</span><span>Missed, with flood</span><span>Missed, no attacker</span></div>
+        <div class="tr"><span>No limiter</span><b data-count="60.4" data-dec="1">60.4</b><b data-count="0.3" data-dec="1">0.3</b></div>
+        <div class="tr bad"><span>Per-IP token bucket</span><b data-count="68.4" data-dec="1">68.4</b><b data-count="19.3" data-dec="1">19.3</b></div>
+        <div class="tr good"><span>FairDoor</span><b>0</b><b>0</b></div>
+      </div>
+      <div class="takeaways" data-stagger>
+        <p>Per-IP limiting is <em>worse than no limiter</em> under attack: it throttles the hostel IPs harder than the flood.</p>
+        <p>With <em>no attacker at all</em>, it still made about 19 students miss, only because they share an IP.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 · limits -->
+  <section id="limits" data-stage="6" data-chapter="Limits">
+    <div class="wrap grid">
+      <div class="col-l stack">
+        <p class="label" data-scramble>06 · What it doesn't show (yet)</p>
+        <h2 class="h2" data-split>A model is only as honest as its <em>assumptions.</em></h2>
+      </div>
+      <div class="col-r">
+        <ol class="limits-list" data-stagger>
+          <li><b>One attacker identity.</b> Fairness is only as strong as identity. Fifty stolen accounts get fifty turns. Real deployments need SSO and enrolment-linked accounts underneath.</li>
+          <li><b>Stamps are free here.</b> In reality, issuing and verifying one costs CPU, and a flood of stamp requests is its own load. Issuance needs a cheap path and its own limit.</li>
+          <li><b>No network latency, no crashes, one endpoint.</b></li>
+          <li><b>The arrival curve is assumed:</b> exponential, skewed late. Real portal logs would replace it.</li>
+        </ol>
+        <div class="prior card" data-rise>
+          <p class="label bare">Prior art</p>
+          <ul>
+            <li>RainCheck Filter, Kung, Lee, Tseng, Hsiao et al., IEEE ICNP 2015: turned-away clients get timestamped "rain checks". FairDoor's stamp is a descendant, with the submission hash and deadline semantics added.</li>
+            <li>Deficit Round Robin, Shreedhar &amp; Varghese, SIGCOMM 1995.</li>
+            <li>Cloudflare Waiting Room (FIFO and random queueing) and Fair-Drop (fair dropping under load).</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 · next -->
+  <section id="next" data-stage="7" data-chapter="Next">
+    <div class="wrap grid">
+      <div class="col-l stack">
+        <p class="label" data-scramble>07 · Run it, then what's next</p>
+        <h2 class="h2" data-split>A design, <em>tested.</em> Not a product yet.</h2>
+        <ul class="todo" data-stagger>
+          <li>A minimal Flask version of the stamp issue/verify path, with tests</li>
+          <li>A multi-identity attacker in the simulation</li>
+          <li>A load test against the Flask version</li>
+          <li>A threat model: stamp forgery, replay, clock skew</li>
+        </ul>
+      </div>
+      <div class="col-r">
+<pre class="term" data-rise><span class="dim">$</span> python3 sim.py
+policy       missed deadline (mean)   attacker share of capacity
+none                           <span class="bad">60.4</span>                        0.803
+per_ip                         <span class="bad">68.4</span>                        0.809
+fairdoor                          <span class="ok">0</span>                        0.488
+
+<span class="dim">$</span> python3 sim.py --no-attacker
+policy       missed deadline (mean)   attacker share of capacity
+none                            0.3                          0.0
+per_ip                         <span class="bad">19.3</span>                          0.0
+fairdoor                          <span class="ok">0</span>                          0.0</pre>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p class="big">Fair<em>Door</em>.</p>
+    <div class="row">
+      <div class="links">
+        <a class="btn acc" href="https://github.com/shyamvasansathiskumar-ux/fairdoor" target="_blank" rel="noopener">Source on GitHub <span class="arr">↗</span></a>
+        <a class="btn ghost" href="https://shyamvasansathiskumar-ux.github.io/kaappu/">Kaappu <span class="arr">→</span></a>
+        <a class="btn ghost" href="https://shyamvasansathiskumar-ux.github.io/kaaval/">Kaaval <span class="arr">→</span></a>
+      </div>
+      <small>Shyam Kumar · REC Chennai · 2026<br>Built with Claude as a pair programmer. MIT licence.</small>
+    </div>
+  </div>
+</footer>
+
+<script src="gsap.min.js"></script>
+<script src="ScrollTrigger.min.js"></script>
+<script src="SplitText.min.js"></script>
+<script src="ScrambleTextPlugin.min.js"></script>
+<script src="lenis.min.js"></script>
+<script src="motion.js"></script>
+<script src="sim.js"></script>
+<script src="app.js"></script>
+<script type="module" src="scene.js"></script>
+</body>
+</html>
