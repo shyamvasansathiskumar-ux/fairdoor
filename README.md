@@ -2,6 +2,8 @@
 
 **Rate limiting that can tell a deadline rush from a script flood.**
 
+**Run it live:** [shyamvasansathiskumar-ux.github.io/fairdoor](https://shyamvasansathiskumar-ux.github.io/fairdoor/). The page runs a line-for-line JavaScript port of `sim.py` with Python's own random number generator, so its defaults reproduce the table below exactly. The site's source is in [`docs/`](docs/).
+
 At 11:58 pm on a submission deadline, two things look the same to a server: hundreds of real students hitting *submit*, and one script hammering the endpoint. The usual defence, rate limiting per IP address, gets both wrong on a college network:
 
 - **It punishes the innocent.** Hostels and campuses sit behind a few shared public IPs (NAT). 110 students on one IP look like one very busy client, so they get throttled together.
