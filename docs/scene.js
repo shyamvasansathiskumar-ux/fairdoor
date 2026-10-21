@@ -115,6 +115,8 @@ createWorld(document.getElementById("world"), async ({ scene, camera, mobile }) 
     return CAM[i].map((v, j) => v + (CAM[i + 1][j] - v) * f);
   };
 
+  scene.userData.logo = door;   // shown small and centred while the page loads
+
   return (st) => {
     const t = st.t, dt = st.dt;
     const k1 = smooth(0.55, 1.2, st.stage) * (1 - smooth(1.65, 2.3, st.stage));   // per-IP chapter
